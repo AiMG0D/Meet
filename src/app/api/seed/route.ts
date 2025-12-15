@@ -11,7 +11,7 @@ export async function GET() {
     const customSlots = [
       {
         date: '2025-12-16',
-        slots: ['16:00', '17:00']
+        slots: ['13:00', '14:00', '15:00', '16:00', '17:00']
       }
     ];
 
