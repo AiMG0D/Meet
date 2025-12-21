@@ -3,6 +3,7 @@ import dbConnect from '@/lib/db';
 import Booking from '@/models/Booking';
 import { sendEmailWithLogo, generateUserEmailHTML, generateAdminEmailHTML } from '@/lib/email';
 import { createZoomMeeting } from '@/lib/zoom';
+import { consumeEmailVerification } from '@/lib/verification';
 import { startOfDay, endOfDay, format, parse } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -13,6 +14,16 @@ export async function POST(request: NextRequest) {
 
     if (!name || !email || !phone || !customerType || !date || !slot) {
       return NextResponse.json({ error: 'Alla obligatoriska fält måste fyllas i' }, { status: 400 });
+    }
+
+    // SERVER-SIDE EMAIL VERIFICATION CHECK
+    // This ensures the email was verified and consumes the verification (one-time use)
+    const emailVerified = consumeEmailVerification(email);
+    if (!emailVerified) {
+      console.log('Booking rejected - email not verified:', email);
+      return NextResponse.json({ 
+        error: 'E-posten har inte verifierats. Vänligen verifiera din e-post först.' 
+      }, { status: 403 });
     }
 
     await dbConnect();

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-
-// In-memory store for verification codes (in production, use Redis or DB)
-const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
+import { 
+  verificationCodes, 
+  generateCode, 
+  markEmailAsVerified,
+  cleanupExpired 
+} from '@/lib/verification';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -14,12 +17,11 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 export async function POST(request: NextRequest) {
   try {
+    // Cleanup expired entries occasionally
+    cleanupExpired();
+    
     const body = await request.json();
     const { email, action, code } = body;
 
@@ -27,12 +29,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'E-post krävs' }, { status: 400 });
     }
 
+    const emailLower = email.toLowerCase();
+
     // Send verification code
     if (action === 'send') {
       const verificationCode = generateCode();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-      verificationCodes.set(email.toLowerCase(), { code: verificationCode, expiresAt });
+      verificationCodes.set(emailLower, { code: verificationCode, expiresAt });
 
       const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
@@ -72,6 +76,7 @@ export async function POST(request: NextRequest) {
         `,
       });
 
+      console.log(`Verification code sent to ${emailLower}`);
       return NextResponse.json({ success: true, message: 'Verifieringskod skickad' });
     }
 
@@ -81,14 +86,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Kod krävs' }, { status: 400 });
       }
 
-      const stored = verificationCodes.get(email.toLowerCase());
+      const stored = verificationCodes.get(emailLower);
 
       if (!stored) {
         return NextResponse.json({ error: 'Ingen kod skickad till denna e-post' }, { status: 400 });
       }
 
       if (Date.now() > stored.expiresAt) {
-        verificationCodes.delete(email.toLowerCase());
+        verificationCodes.delete(emailLower);
         return NextResponse.json({ error: 'Koden har gått ut' }, { status: 400 });
       }
 
@@ -96,9 +101,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Felaktig kod' }, { status: 400 });
       }
 
-      // Code is valid, remove it
-      verificationCodes.delete(email.toLowerCase());
-
+      // Code is valid - remove the code and mark email as verified
+      verificationCodes.delete(emailLower);
+      markEmailAsVerified(emailLower);
+      
+      console.log(`Email verified: ${emailLower}`);
       return NextResponse.json({ success: true, verified: true });
     }
 
@@ -108,4 +115,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ett fel uppstod' }, { status: 500 });
   }
 }
-
