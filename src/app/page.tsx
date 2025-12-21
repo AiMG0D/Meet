@@ -24,6 +24,14 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<string | undefined>();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [customerType, setCustomerType] = useState<'existing' | 'new' | null>(null);
+  const [description, setDescription] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isCodeSent, setIsCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -68,8 +76,79 @@ export default function BookingPage() {
     }
   };
 
+  const sendVerificationCode = async () => {
+    if (!email || !email.includes('@')) {
+      setError('Ange en giltig e-postadress');
+      return;
+    }
+    
+    setSendingCode(true);
+    setError('');
+    
+    try {
+      const res = await fetch('/api/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action: 'send' }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Kunde inte skicka kod');
+      }
+      
+      setIsCodeSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Ett fel uppstod');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError('Ange en 6-siffrig kod');
+      return;
+    }
+    
+    setVerifyingCode(true);
+    setError('');
+    
+    try {
+      const res = await fetch('/api/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, action: 'verify', code: verificationCode }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Felaktig kod');
+      }
+      
+      setIsEmailVerified(true);
+    } catch (err: any) {
+      setError(err.message || 'Ett fel uppstod');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isEmailVerified) {
+      setError('Du måste verifiera din e-post först');
+      return;
+    }
+    
+    if (!customerType) {
+      setError('Välj om du är befintlig eller ny kund');
+      return;
+    }
+    
     setIsSubmitting(true);
     setError('');
 
@@ -80,6 +159,9 @@ export default function BookingPage() {
         body: JSON.stringify({
           name,
           email,
+          phone,
+          customerType,
+          description,
           date: date!.toISOString(),
           slot: selectedSlot,
         }),
@@ -105,6 +187,12 @@ export default function BookingPage() {
     setSelectedSlot(undefined);
     setName('');
     setEmail('');
+    setPhone('');
+    setCustomerType(null);
+    setDescription('');
+    setVerificationCode('');
+    setIsEmailVerified(false);
+    setIsCodeSent(false);
     setIsSuccess(false);
     setError('');
   };
@@ -347,67 +435,194 @@ export default function BookingPage() {
                     className="max-w-md mx-auto pt-12"
                   >
                     <h2 className="text-2xl font-bold text-center mb-2">Dina uppgifter</h2>
-                    <p className="text-white/40 text-center mb-8">
+                    <p className="text-white/40 text-center mb-6">
                       Fyll i dina uppgifter för att slutföra bokningen
                     </p>
 
                     {/* Selected Date & Time Summary */}
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-8">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-white/40 text-sm mb-1">Din valda tid</p>
-                          <p className="text-white font-semibold text-lg">
+                          <p className="text-white font-semibold">
                             {date && format(date, 'd MMMM', { locale: sv })} kl {selectedSlot}
                           </p>
                         </div>
                         <button 
                           onClick={() => setCurrentStep(1)}
-                          className="text-white/40 hover:text-white text-sm px-4 py-2 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
+                          className="text-white/40 hover:text-white text-sm px-3 py-1.5 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
                         >
                           Ändra
                         </button>
                       </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                      <div>
-                        <label className="block text-sm font-medium text-white/60 mb-2">Namn</label>
-                        <input
-                          type="text"
-                          required
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all text-lg"
-                          placeholder="Ditt fullständiga namn"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-white/60 mb-2">E-post</label>
-                        <input
-                          type="email"
-                          required
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all text-lg"
-                          placeholder="din@email.se"
-                        />
-                      </div>
-
-                      {error && (
-                        <div className="text-red-400 text-sm text-center bg-red-500/10 py-3 rounded-xl border border-red-500/20">
-                          {error}
+                    {/* Scrollable form */}
+                    <div className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      <form onSubmit={handleSubmit} className="space-y-4 pb-2">
+                        {/* Full Name */}
+                        <div>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Fullständigt namn</label>
+                          <input
+                            type="text"
+                            required
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all"
+                            placeholder="Ditt fullständiga namn"
+                          />
                         </div>
-                      )}
 
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full py-5 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition-all flex justify-center items-center text-lg mt-6"
-                      >
-                        {isSubmitting ? <Loader2 className="animate-spin h-6 w-6" /> : 'Bekräfta Bokning'}
-                      </button>
-                    </form>
+                        {/* Email with Verification */}
+                        <div>
+                          <label className="block text-sm font-medium text-white/60 mb-2">
+                            E-post
+                            {isEmailVerified && (
+                              <span className="ml-2 text-green-400">✓ Verifierad</span>
+                            )}
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              required
+                              value={email}
+                              onChange={(e) => {
+                                setEmail(e.target.value);
+                                setIsEmailVerified(false);
+                                setIsCodeSent(false);
+                              }}
+                              disabled={isEmailVerified}
+                              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all disabled:opacity-50"
+                              placeholder="din@email.se"
+                            />
+                            {!isEmailVerified && !isCodeSent && (
+                              <button
+                                type="button"
+                                onClick={sendVerificationCode}
+                                disabled={sendingCode || !email}
+                                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+                              >
+                                {sendingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Skicka'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Verification Code */}
+                        {isCodeSent && !isEmailVerified && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                          >
+                            <label className="block text-sm font-medium text-white/60 mb-2">Verifieringskod</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all tracking-widest text-center font-mono"
+                                placeholder="000000"
+                                maxLength={6}
+                              />
+                              <button
+                                type="button"
+                                onClick={verifyCode}
+                                disabled={verifyingCode || verificationCode.length !== 6}
+                                className="px-4 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-xl transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+                              >
+                                {verifyingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                              </button>
+                            </div>
+                            <p className="text-white/30 text-xs mt-2">Kolla din inkorg för koden</p>
+                          </motion.div>
+                        )}
+
+                        {/* Phone Number */}
+                        <div>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Mobilnummer</label>
+                          <input
+                            type="tel"
+                            required
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all"
+                            placeholder="+46 70 123 45 67"
+                          />
+                        </div>
+
+                        {/* Customer Type Toggle */}
+                        <div>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Kundtyp</label>
+                          <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
+                            <button
+                              type="button"
+                              onClick={() => setCustomerType('existing')}
+                              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
+                                customerType === 'existing'
+                                  ? 'bg-white text-black'
+                                  : 'text-white/50 hover:text-white'
+                              }`}
+                            >
+                              Befintlig kund
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCustomerType('new')}
+                              className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
+                                customerType === 'new'
+                                  ? 'bg-white text-black'
+                                  : 'text-white/50 hover:text-white'
+                              }`}
+                            >
+                              Ny kund
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Beskriv ditt ärende</label>
+                          <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all resize-none"
+                            placeholder="Beskriv kort vad du vill diskutera så vi kan förbereda oss inför mötet..."
+                          />
+                        </div>
+
+                        {error && (
+                          <div className="text-red-400 text-sm text-center bg-red-500/10 py-3 rounded-xl border border-red-500/20">
+                            {error}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || !isEmailVerified || !customerType}
+                          className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-white/90 transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : 'Bekräfta Bokning'}
+                        </button>
+                      </form>
+                    </div>
+
+                    <style jsx global>{`
+                      .custom-scrollbar::-webkit-scrollbar {
+                        width: 6px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-track {
+                        background: rgba(255, 255, 255, 0.02);
+                        border-radius: 3px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-thumb {
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 3px;
+                      }
+                      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                        background: rgba(255, 255, 255, 0.2);
+                      }
+                    `}</style>
                   </motion.div>
                 )}
               </AnimatePresence>
