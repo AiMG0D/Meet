@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Booking from '@/models/Booking';
+import EmailVerification from '@/models/EmailVerification';
 import { sendEmailWithLogo, generateUserEmailHTML, generateAdminEmailHTML } from '@/lib/email';
 import { createZoomMeeting } from '@/lib/zoom';
-import { consumeEmailVerification } from '@/lib/verification';
 import { startOfDay, endOfDay, format, parse } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -16,17 +16,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Alla obligatoriska fält måste fyllas i' }, { status: 400 });
     }
 
-    // SERVER-SIDE EMAIL VERIFICATION CHECK
-    // This ensures the email was verified and consumes the verification (one-time use)
-    const emailVerified = consumeEmailVerification(email);
-    if (!emailVerified) {
-      console.log('Booking rejected - email not verified:', email);
+    await dbConnect();
+
+    // SERVER-SIDE EMAIL VERIFICATION CHECK (from MongoDB)
+    const emailLower = email.toLowerCase();
+    const verification = await EmailVerification.findOne({ email: emailLower });
+    
+    if (!verification || !verification.verified) {
+      console.log('Booking rejected - email not verified:', emailLower);
       return NextResponse.json({ 
         error: 'E-posten har inte verifierats. Vänligen verifiera din e-post först.' 
       }, { status: 403 });
     }
 
-    await dbConnect();
+    // Check if verification has expired
+    if (new Date() > verification.expiresAt) {
+      await EmailVerification.deleteOne({ email: emailLower });
+      console.log('Booking rejected - verification expired:', emailLower);
+      return NextResponse.json({ 
+        error: 'Verifieringen har gått ut. Vänligen verifiera din e-post igen.' 
+      }, { status: 403 });
+    }
+
+    // Consume the verification (delete it so it can't be reused)
+    await EmailVerification.deleteOne({ email: emailLower });
+    console.log('Email verification consumed for:', emailLower);
 
     const bookingDate = new Date(date);
     const normalizedDate = startOfDay(bookingDate);

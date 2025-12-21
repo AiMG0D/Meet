@@ -588,7 +588,7 @@ export default function BookingPage() {
 
                         {/* Phone Number */}
                         <div>
-                          <label className="block text-sm font-medium text-white/60 mb-2">Mobilnummer (svenskt)</label>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Mobilnummer</label>
                           <input
                             type="tel"
                             required

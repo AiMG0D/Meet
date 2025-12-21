@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { 
-  verificationCodes, 
-  generateCode, 
-  markEmailAsVerified,
-  cleanupExpired 
-} from '@/lib/verification';
+import dbConnect from '@/lib/db';
+import EmailVerification from '@/models/EmailVerification';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -17,10 +13,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+function generateCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Cleanup expired entries occasionally
-    cleanupExpired();
+    await dbConnect();
     
     const body = await request.json();
     const { email, action, code } = body;
@@ -34,9 +33,19 @@ export async function POST(request: NextRequest) {
     // Send verification code
     if (action === 'send') {
       const verificationCode = generateCode();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      verificationCodes.set(emailLower, { code: verificationCode, expiresAt });
+      // Upsert - create or update verification record
+      await EmailVerification.findOneAndUpdate(
+        { email: emailLower },
+        { 
+          email: emailLower,
+          code: verificationCode, 
+          verified: false,
+          expiresAt 
+        },
+        { upsert: true, new: true }
+      );
 
       const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
@@ -86,24 +95,29 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Kod krävs' }, { status: 400 });
       }
 
-      const stored = verificationCodes.get(emailLower);
+      const verification = await EmailVerification.findOne({ email: emailLower });
 
-      if (!stored) {
+      if (!verification) {
         return NextResponse.json({ error: 'Ingen kod skickad till denna e-post' }, { status: 400 });
       }
 
-      if (Date.now() > stored.expiresAt) {
-        verificationCodes.delete(emailLower);
+      if (new Date() > verification.expiresAt) {
+        await EmailVerification.deleteOne({ email: emailLower });
         return NextResponse.json({ error: 'Koden har gått ut' }, { status: 400 });
       }
 
-      if (stored.code !== code) {
+      if (verification.code !== code) {
         return NextResponse.json({ error: 'Felaktig kod' }, { status: 400 });
       }
 
-      // Code is valid - remove the code and mark email as verified
-      verificationCodes.delete(emailLower);
-      markEmailAsVerified(emailLower);
+      // Mark as verified and extend expiry to 30 minutes for booking
+      await EmailVerification.findOneAndUpdate(
+        { email: emailLower },
+        { 
+          verified: true,
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes to complete booking
+        }
+      );
       
       console.log(`Email verified: ${emailLower}`);
       return NextResponse.json({ success: true, verified: true });
