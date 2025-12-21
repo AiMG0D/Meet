@@ -119,7 +119,7 @@ export const generateUserEmailHTML = (name: string, date: string, slot: string, 
   `;
 };
 
-export const generateAdminEmailHTML = (name: string, email: string, date: string, slot: string, zoomLink: string) => {
+export const generateAdminEmailHTML = (name: string, email: string, phone: string, customerType: string, description: string, date: string, slot: string, zoomLink: string) => {
   return `
 <!DOCTYPE html>
 <html>
@@ -147,6 +147,7 @@ export const generateAdminEmailHTML = (name: string, email: string, date: string
                 <span style="color: #ffffff; font-size: 24px;">✓</span>
               </div>
               <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: bold;">Ny Bokning Mottagen</h1>
+              <p style="margin: 10px 0 0 0; color: #888888; font-size: 14px;">${customerType}</p>
             </td>
           </tr>
           
@@ -168,16 +169,37 @@ export const generateAdminEmailHTML = (name: string, email: string, date: string
                 </tr>
                 <tr>
                   <td style="padding: 20px; border-bottom: 1px solid #222222;">
+                    <p style="margin: 0 0 5px 0; color: #666666; font-size: 12px; text-transform: uppercase;">Mobilnummer</p>
+                    <p style="margin: 0;"><a href="tel:${phone}" style="color: #3b82f6; text-decoration: none; font-size: 16px;">${phone}</a></p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 20px; border-bottom: 1px solid #222222;">
                     <p style="margin: 0 0 5px 0; color: #666666; font-size: 12px; text-transform: uppercase;">Datum</p>
                     <p style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">${date}</p>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding: 20px;">
+                  <td style="padding: 20px; border-bottom: 1px solid #222222;">
                     <p style="margin: 0 0 5px 0; color: #666666; font-size: 12px; text-transform: uppercase;">Tid</p>
                     <p style="margin: 0; color: #ffffff; font-size: 18px; font-weight: bold;">${slot}</p>
                   </td>
                 </tr>
+                ${description ? `
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="margin: 0 0 5px 0; color: #666666; font-size: 12px; text-transform: uppercase;">Kundens ärende</p>
+                    <p style="margin: 0; color: #ffffff; font-size: 14px; line-height: 1.5;">${description}</p>
+                  </td>
+                </tr>
+                ` : `
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="margin: 0 0 5px 0; color: #666666; font-size: 12px; text-transform: uppercase;">Kundens ärende</p>
+                    <p style="margin: 0; color: #666666; font-size: 14px; font-style: italic;">Ingen beskrivning angiven</p>
+                  </td>
+                </tr>
+                `}
               </table>
             </td>
           </tr>

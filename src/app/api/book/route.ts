@@ -9,10 +9,10 @@ import { sv } from 'date-fns/locale';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, date, slot } = body;
+    const { name, email, phone, customerType, description, date, slot } = body;
 
-    if (!name || !email || !date || !slot) {
-      return NextResponse.json({ error: 'Alla fält måste fyllas i' }, { status: 400 });
+    if (!name || !email || !phone || !customerType || !date || !slot) {
+      return NextResponse.json({ error: 'Alla obligatoriska fält måste fyllas i' }, { status: 400 });
     }
 
     await dbConnect();
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const start = startOfDay(bookingDate);
     const end = endOfDay(bookingDate);
 
-    console.log('Creating booking:', { date, bookingDate, normalizedDate, slot });
+    console.log('Creating booking:', { date, bookingDate, normalizedDate, slot, customerType });
 
     // Check if slot is already booked
     const existingBooking = await Booking.findOne({
@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
     const newBooking = await Booking.create({
       name,
       email,
+      phone,
+      customerType,
+      description: description || '',
       date: normalizedDate,
       slot,
       zoomLink,
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Format date for email (Swedish)
     const formattedDate = format(bookingDate, 'EEEE d MMMM yyyy', { locale: sv });
+    const customerTypeText = customerType === 'existing' ? 'Befintlig kund' : 'Ny kund';
 
     // Send Emails
     try {
@@ -84,8 +88,8 @@ export async function POST(request: NextRequest) {
       // Admin Notification
       await sendEmailWithLogo({
         to: 'mohamadalrayes65@gmail.com',
-        subject: `Ny Bokning: ${name} - ${format(bookingDate, 'd MMM', { locale: sv })} kl ${slot}`,
-        html: generateAdminEmailHTML(name, email, formattedDate, slot, zoomLink),
+        subject: `Ny Bokning: ${name} (${customerTypeText}) - ${format(bookingDate, 'd MMM', { locale: sv })} kl ${slot}`,
+        html: generateAdminEmailHTML(name, email, phone, customerTypeText, description, formattedDate, slot, zoomLink),
       });
     } catch (emailError) {
       console.error('Email sending failed:', emailError);

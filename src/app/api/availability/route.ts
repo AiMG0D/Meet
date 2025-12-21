@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Booking from '@/models/Booking';
 import Availability from '@/models/Availability';
-import { startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, format, parseISO, isWeekend } from 'date-fns';
 
-// Default slots (09:00 - 16:00, 1h duration, 30m break)
-const DEFAULT_SLOTS = ['09:00', '10:30', '12:00', '13:30', '15:00'];
+// Weekday slots (09:00 - 16:00, 30-minute intervals)
+const WEEKDAY_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00'
+];
+
+// Weekend slots (only 10:00 and 10:30)
+const WEEKEND_SLOTS = ['10:00', '10:30'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,8 +38,11 @@ export async function GET(request: NextRequest) {
     // Check for custom availability for this date
     const customAvailability = await Availability.findOne({ date: dateString });
     
-    // Use custom slots if defined, otherwise use default
-    const allSlots = customAvailability ? customAvailability.slots : DEFAULT_SLOTS;
+    // Determine default slots based on weekday/weekend
+    const defaultSlots = isWeekend(date) ? WEEKEND_SLOTS : WEEKDAY_SLOTS;
+    
+    // Use custom slots if defined, otherwise use default based on day type
+    const allSlots = customAvailability ? customAvailability.slots : defaultSlots;
 
     // Find bookings for the selected date
     const bookings = await Booking.find({

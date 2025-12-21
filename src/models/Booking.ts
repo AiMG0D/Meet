@@ -3,6 +3,9 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IBooking extends Document {
   name: string;
   email: string;
+  phone: string;
+  customerType: 'existing' | 'new';
+  description: string;
   date: Date;
   slot: string;
   zoomLink: string;
@@ -12,6 +15,9 @@ export interface IBooking extends Document {
 const BookingSchema: Schema = new Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
+  phone: { type: String, required: true },
+  customerType: { type: String, enum: ['existing', 'new'], required: true },
+  description: { type: String, default: '' },
   date: { type: Date, required: true },
   slot: { type: String, required: true },
   zoomLink: { type: String, required: true },
