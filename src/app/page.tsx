@@ -34,7 +34,38 @@ export default function BookingPage() {
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Swedish phone number validation
+  const validateSwedishPhone = (phoneNumber: string): boolean => {
+    // Remove all spaces, dashes, and parentheses
+    const cleaned = phoneNumber.replace(/[\s\-\(\)]/g, '');
+    
+    // Swedish mobile: starts with 07 and 10 digits total (e.g., 0701234567)
+    const swedishMobile07 = /^07[0-9]{8}$/;
+    
+    // Swedish mobile: starts with 7 and 9 digits (without leading 0)
+    const swedishMobile7 = /^7[0-9]{8}$/;
+    
+    // Swedish mobile with country code: +46 followed by 9 digits
+    const swedishMobileIntl = /^\+467[0-9]{8}$/;
+    
+    // Swedish mobile with country code without plus: 467 followed by 8 digits
+    const swedishMobileIntlNoPlus = /^467[0-9]{8}$/;
+    
+    return swedishMobile07.test(cleaned) || 
+           swedishMobile7.test(cleaned) || 
+           swedishMobileIntl.test(cleaned) ||
+           swedishMobileIntlNoPlus.test(cleaned);
+  };
+
+  const formatSwedishPhone = (value: string): string => {
+    // Remove all non-digit characters except +
+    let cleaned = value.replace(/[^\d+]/g, '');
+    return cleaned;
+  };
 
   useEffect(() => {
     if (date) {
@@ -108,12 +139,12 @@ export default function BookingPage() {
 
   const verifyCode = async () => {
     if (!verificationCode || verificationCode.length !== 6) {
-      setError('Ange en 6-siffrig kod');
+      setCodeError('Ange en 6-siffrig kod');
       return;
     }
     
     setVerifyingCode(true);
-    setError('');
+    setCodeError('');
     
     try {
       const res = await fetch('/api/verify-email', {
@@ -129,8 +160,9 @@ export default function BookingPage() {
       }
       
       setIsEmailVerified(true);
+      setCodeError('');
     } catch (err: any) {
-      setError(err.message || 'Ett fel uppstod');
+      setCodeError(err.message || 'Felaktig kod');
     } finally {
       setVerifyingCode(false);
     }
@@ -138,6 +170,7 @@ export default function BookingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneError('');
     
     if (!isEmailVerified) {
       setError('Du måste verifiera din e-post först');
@@ -146,6 +179,11 @@ export default function BookingPage() {
     
     if (!customerType) {
       setError('Välj om du är befintlig eller ny kund');
+      return;
+    }
+    
+    if (!validateSwedishPhone(phone)) {
+      setPhoneError('Ange ett giltigt svenskt mobilnummer (t.ex. 0701234567 eller +46701234567)');
       return;
     }
     
@@ -195,6 +233,8 @@ export default function BookingPage() {
     setIsCodeSent(false);
     setIsSuccess(false);
     setError('');
+    setCodeError('');
+    setPhoneError('');
   };
 
   // Success Screen
@@ -519,8 +559,13 @@ export default function BookingPage() {
                               <input
                                 type="text"
                                 value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all tracking-widest text-center font-mono"
+                                onChange={(e) => {
+                                  setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                                  setCodeError('');
+                                }}
+                                className={`flex-1 bg-white/5 border rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none transition-all tracking-widest text-center font-mono ${
+                                  codeError ? 'border-red-500/50' : 'border-white/10 focus:border-white/30'
+                                }`}
                                 placeholder="000000"
                                 maxLength={6}
                               />
@@ -533,21 +578,34 @@ export default function BookingPage() {
                                 {verifyingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                               </button>
                             </div>
-                            <p className="text-white/30 text-xs mt-2">Kolla din inkorg för koden</p>
+                            {codeError ? (
+                              <p className="text-red-400 text-xs mt-2">{codeError}</p>
+                            ) : (
+                              <p className="text-white/30 text-xs mt-2">Kolla din inkorg för koden</p>
+                            )}
                           </motion.div>
                         )}
 
                         {/* Phone Number */}
                         <div>
-                          <label className="block text-sm font-medium text-white/60 mb-2">Mobilnummer</label>
+                          <label className="block text-sm font-medium text-white/60 mb-2">Mobilnummer (svenskt)</label>
                           <input
                             type="tel"
                             required
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all"
-                            placeholder="+46 70 123 45 67"
+                            onChange={(e) => {
+                              setPhone(formatSwedishPhone(e.target.value));
+                              setPhoneError('');
+                            }}
+                            className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none transition-all ${
+                              phoneError ? 'border-red-500/50' : 'border-white/10 focus:border-white/30'
+                            }`}
+                            placeholder="0701234567"
                           />
+                          {phoneError && (
+                            <p className="text-red-400 text-xs mt-2">{phoneError}</p>
+                          )}
+                          <p className="text-white/30 text-xs mt-1">Format: 07XXXXXXXX eller +467XXXXXXXX</p>
                         </div>
 
                         {/* Customer Type Toggle */}
